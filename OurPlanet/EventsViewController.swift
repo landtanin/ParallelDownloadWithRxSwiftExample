@@ -24,47 +24,71 @@ import UIKit
 import RxSwift
 
 class EventsViewController : UIViewController {
-
-  @IBOutlet var tableView: UITableView!
-  @IBOutlet var slider: UISlider!
-  @IBOutlet var daysLabel: UILabel!
-  
-  let events = Variable<[EOEvent]>([])
-  
-  let days = Variable<Int>(360)
-  let filteredEvents = Variable<[EOEvent]>([])
-  
-  let disposeBag = DisposeBag()
-
-  override func viewDidLoad() {
-    super.viewDidLoad()
-
-    tableView.rowHeight = UITableViewAutomaticDimension
-    tableView.estimatedRowHeight = 60
     
-    events.asObservable()
-        .observeOn(MainScheduler.instance)
-        .subscribe(onNext: { [weak self] (_) in
-            self?.tableView.reloadData()
-        })
-        .disposed(by: disposeBag)
-  }
-
-  @IBAction func sliderAction(slider: UISlider) {
-  }
+    @IBOutlet var tableView: UITableView!
+    @IBOutlet var slider: UISlider!
+    @IBOutlet var daysLabel: UILabel!
+    
+    let events = Variable<[EOEvent]>([])
+    
+    let days = Variable<Int>(360)
+    let filteredEvents = Variable<[EOEvent]>([])
+    
+    let disposeBag = DisposeBag()
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        tableView.rowHeight = UITableViewAutomaticDimension
+        tableView.estimatedRowHeight = 60
+        
+        filteredEvents.asObservable()
+            .observeOn(MainScheduler.instance)
+            .subscribe(onNext: { [weak self] (_) in
+                self?.tableView.reloadData()
+            })
+            .disposed(by: disposeBag)
+        
+        
+        days.asObservable()
+            .subscribe(onNext: { [weak self] (days) in
+                self?.daysLabel.text = "Last \(days) day" + (days == 1 ? "" : "s")
+            })
+            .disposed(by: disposeBag)
+        
+        Observable.combineLatest(days.asObservable(), events.asObservable()) { days, events -> [EOEvent] in
+            let maxInterval = TimeInterval(days * 24 * 3600)
+            
+            return events.filter { event in
+                if let date = event.closeDate {
+                    return abs(date.timeIntervalSinceNow) < maxInterval
+                }
+                
+                return true
+            }
+            }
+            .bind(to: filteredEvents)
+            .disposed(by: disposeBag)
+        
+        
+    }
+    
+    @IBAction func sliderAction(slider: UISlider) {
+        days.value = Int(slider.value)
+    }
 }
 
 extension EventsViewController: UITableViewDataSource {
-  
-  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return events.value.count
-  }
-  
-  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: "EventCell") as! EventCell
-    let event = events.value[indexPath.row]
-    cell.configure(event: event)
     
-    return cell
-  }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return filteredEvents.value.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "EventCell") as! EventCell
+        let event = filteredEvents.value[indexPath.row]
+        cell.configure(event: event)
+        
+        return cell
+    }
 }

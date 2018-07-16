@@ -42,10 +42,18 @@ class CategoriesViewController: UIViewController {
             })
             .disposed(by: disposeBag)
         
+   
+        
         startDownload()
     }
     
     func startDownload() {
+        
+        let activityIndicator = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+        let barButton = UIBarButtonItem(customView: activityIndicator)
+        self.navigationItem.setRightBarButton(barButton, animated: true)
+        activityIndicator.startAnimating()
+        
         let eoCategories = EONET.categories
         //        let downloadedEvents = EONET.events(forLast: 360)
         let downloadedEvents = eoCategories.flatMap { categories in
@@ -53,6 +61,7 @@ class CategoriesViewController: UIViewController {
                 EONET.events(forLast: 360, category: category)
             })
         }.merge(maxConcurrent: 2) // merge all the individual category threads and set the maximum to 2 to prevent too many operations running at the same time
+      
         
         let updateCategories = eoCategories.flatMap { (categories) in
             downloadedEvents.scan(categories) { updated, events in
@@ -68,6 +77,10 @@ class CategoriesViewController: UIViewController {
                     return category
                 }
             }
+                .observeOn(MainScheduler.instance)
+                .do (onCompleted: { [weak self] () in
+                    activityIndicator.stopAnimating()
+                })
         }
         
         eoCategories
